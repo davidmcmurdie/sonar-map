@@ -1,0 +1,17 @@
+{
+  "name": "sonar-map",
+  "version": "1.0.0",
+  "description": "California Recovery Divers sonar session map viewer (GitHub Pages)",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node --test test/core.test.js",
+    "test:browser": "node test/index-mock-google.js && node test/snippet-mock-google.js"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  },
+  "private": true
+}

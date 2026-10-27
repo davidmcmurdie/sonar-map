@@ -1,0 +1,49 @@
+/* All rules are scoped to #svm-root so the Squarespace theme is untouched. */
+#svm-root { --svm-bg:#0f1720; --svm-fg:#e8eef4; --svm-mute:#9fb0c0; --svm-acc:#29b6f6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px; line-height: 1.35; color: var(--svm-fg); background: var(--svm-bg);
+  border-radius: 8px; padding: 10px; position: relative; text-align: left; }
+#svm-root, #svm-root * { box-sizing: border-box; }
+#svm-root.svm-dragging { outline: 3px dashed var(--svm-acc); outline-offset: -3px; }
+#svm-root .svm-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 8px; }
+#svm-root .svm-bar label { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 14px; color: var(--svm-fg); cursor: pointer; white-space: nowrap; }
+#svm-root .svm-bar input[type=checkbox] { width: 18px; height: 18px; margin: 0; accent-color: var(--svm-acc); }
+#svm-root .svm-bar select { font: inherit; font-size: 14px; padding: 4px 6px; border-radius: 4px; border: 1px solid #456; background: #1c2733; color: var(--svm-fg); height: auto; width: auto; margin: 0; }
+#svm-root .svm-btn { font: inherit; font-size: 14px; display: inline-block; padding: 7px 12px; margin: 0; border-radius: 5px;
+  border: 1px solid #3d5266; background: #1f2e3d; color: var(--svm-fg); cursor: pointer; line-height: 1.2; text-transform: none; letter-spacing: normal; width: auto; height: auto; }
+#svm-root .svm-btn:hover { background: #29405a; }
+#svm-root .svm-btn.svm-primary { background: #0277bd; border-color: #0288d1; color: #fff; font-weight: 600; }
+#svm-root .svm-btn.svm-small { padding: 4px 8px; font-size: 12px; }
+#svm-root .svm-file input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+#svm-root .svm-hint { color: var(--svm-mute); font-size: 13px; }
+#svm-root .svm-main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 10px; }
+#svm-root .svm-map { width: 100%; height: 70vh; min-height: 420px; border-radius: 6px; overflow: hidden; background: #22313f; color: #000; }
+#svm-root .svm-map img { max-width: none !important; } /* themes that style img break map tiles */
+#svm-root .svm-panel { height: 70vh; min-height: 420px; overflow-y: auto; padding-right: 2px; }
+#svm-root .svm-empty, #svm-root .svm-note { color: var(--svm-mute); font-size: 13px; margin: 6px 0; }
+#svm-root .svm-errors { display: none; background: #4a1c1c; color: #ffd6d6; border-radius: 5px; padding: 6px 8px; margin: 0 0 8px; font-size: 13px; }
+#svm-root .svm-item { min-width: 0; overflow: hidden; background: #172230; border: 1px solid #2a3b4d; border-radius: 6px; padding: 8px; margin: 0 0 8px; }
+#svm-root .svm-item-head { display: flex; align-items: center; gap: 8px; }
+#svm-root .svm-swatch { flex: none; width: 16px; height: 16px; border-radius: 3px; border: 1px solid #000; }
+#svm-root .svm-show { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 13px; color: var(--svm-fg); }
+#svm-root .svm-show input { width: 16px; height: 16px; margin: 0; }
+#svm-root .svm-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#svm-root .svm-item-btns { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+#svm-root table.svm-stats { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 0; border: 0; }
+#svm-root table.svm-stats th, #svm-root table.svm-stats td { padding: 2px 4px; border: 0; vertical-align: top; text-align: left; background: none; color: var(--svm-fg); }
+#svm-root table.svm-stats th { color: var(--svm-mute); font-weight: normal; white-space: nowrap; width: 1%; }
+#svm-root .svm-warn { color: #ffcc80; font-size: 12px; margin: 4px 0 0; }
+#svm-root .svm-msg { padding: 20px; color: var(--svm-fg); }
+#svm-root .svm-iw { color: #111; font-size: 12.5px; line-height: 1.3; }
+#svm-root .svm-iw table { border-collapse: collapse; margin: 4px 0 0; border: 0; }
+#svm-root .svm-iw td { padding: 1px 6px 1px 0; border: 0; color: #111; background: none; }
+#svm-root .svm-iw td:first-child { color: #555; }
+#svm-root .svm-lbl { background: none; border: 0; box-shadow: none; color: #fff; font-weight: bold; font-size: 10px; padding: 0; }
+#svm-root .svm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--svm-mute); font-size: 12px; margin: 6px 0 0; }
+#svm-root .svm-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 3px; border: 1px solid #fff; }
+@media (max-width: 760px) {
+  #svm-root { padding: 6px; }
+  #svm-root .svm-main { grid-template-columns: minmax(0, 1fr); }
+  #svm-root .svm-map { height: 60vh; min-height: 320px; }
+  #svm-root .svm-panel { height: auto; max-height: none; overflow: visible; }
+}

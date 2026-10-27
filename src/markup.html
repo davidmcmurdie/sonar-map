@@ -1,0 +1,27 @@
+<div id="svm-root">
+  <div class="svm-bar">
+    <label class="svm-btn svm-primary svm-file">Open session files…<input type="file" multiple accept=".json,application/json,text/plain"></label>
+    <span class="svm-hint">or drag &amp; drop exported sonar session files here</span>
+    <label title="Draws every recorded fix, including turnarounds, as a dotted line"><input type="checkbox" data-opt="breadcrumb" checked> Full path (with turns)</label>
+    <label title="Shades the area the side-scan covers on each side of the sonar legs. Display only: the file does not store the range."><input type="checkbox" data-opt="swath"> Sonar swath</label>
+    <label title="Swath range each side of the track (the 5 ft blind zone under the boat is left clear)">Range <select data-opt="range"><option value="30">30 ft</option><option value="50" selected>50 ft</option><option value="70">70 ft</option><option value="90">90 ft</option></select></label>
+    <label title="Shows, in grey, fixes the app rejected as too inaccurate and did not draw"><input type="checkbox" data-opt="rejected"> Rejected fixes</label>
+    <label title="Shows marks dropped during the session"><input type="checkbox" data-opt="marks" checked> Marks</label>
+    <button type="button" class="svm-btn" data-act="fit" title="Zooms the map to fit all loaded files">Fit all</button>
+    <button type="button" class="svm-btn" data-act="clear" title="Removes all files from this page. Nothing is stored or uploaded.">Clear all</button>
+  </div>
+  <div class="svm-errors"></div>
+  <div class="svm-main">
+    <div class="svm-map"></div>
+    <div class="svm-panel"><div class="svm-list"></div></div>
+  </div>
+  <div class="svm-legend">
+    <span><b style="color:#fff">━</b> sonar leg</span><span><b style="color:#fff">┄</b> full path</span>
+    <span><i class="svm-dot" style="background:#00c853"></i>leg start (number = leg)</span>
+    <span><i class="svm-dot" style="background:#d50000"></i>leg end</span>
+    <span><i class="svm-dot" style="background:#ff1744"></i>mark</span>
+    <span><i class="svm-dot" style="background:#9e9e9e"></i>rejected fix</span>
+    <span>Tap a line or marker for details. Times are in this device's time zone.</span>
+  </div>
+  <p class="svm-note">Privacy: files are read by this page inside your browser and are never uploaded or sent anywhere. Map imagery comes from the map provider.</p>
+</div>
