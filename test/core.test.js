@@ -150,3 +150,33 @@ test('built index.html (GitHub Pages) is current and has the key placeholder', (
   assert.strictEqual((page.match(/window\.SVM_GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY';/g) || []).length, 1);
   assert.ok(!/leaflet|openstreetmap/i.test(page.replace(/Leaflet preview/g, '')), 'no preview code in index.html');
 });
+
+// ---- acsodiveteam.org server page (acso target) ----
+test('legacy server shapes: tracks only, breadcrumb only, heading-only fixes', () => {
+  const tracksOnly = C.parseSession('{"tracks":[[{"lat":38.5,"lng":-121.5,"heading":0.0},{"lat":38.5,"lng":-121.5,"heading":0.0},{"lat":38.5001,"lng":-121.5,"heading":210.0}],[]]}', 'a');
+  assert.strictEqual(tracksOnly.breadcrumb.length, 0);
+  const st = C.sessionStats(tracksOnly);
+  assert.strictEqual(st.fixes, 3);
+  assert.strictEqual(st.legs.length, 1);
+  assert.strictEqual(st.hasDiagnostics, false);
+  assert.strictEqual(st.start, null);
+  const bcOnly = C.parseSession('{"tracks":[],"marks":[{"lat":37.7,"lng":-121.9}],"breadcrumb":[{"lat":37.7,"lng":-121.9,"heading":114.3}]}', 'b');
+  assert.strictEqual(C.sessionStats(bcOnly).fixes, 1);
+  assert.strictEqual(bcOnly.marks[0].time, null);
+  const html = C.fixInfoHtml('x', bcOnly.breadcrumb[0]);
+  assert.ok(html.includes('n/a (not recorded in this file)'));
+  assert.ok(html.includes('114° (as recorded)'));
+  assert.throws(() => C.parseSession('{"diver":"x","searchLines":[]}', 'p'), /Dive Profiler/);
+});
+
+test('server file names and lister filtering', () => {
+  const { SVMServerList } = (() => { global.SVMCore = C; const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'acso-server.js'), 'utf8'); return new Function('SVMCore', src + '\nreturn { SVMServerList };')(C); })();
+  const names = ['2026-09-29 13:36 Sonar.json', '2026-09-29 9:05 Sonar.json', '2026-09-29 10:00 Some Diver.json', '2025-07-09 8:11B Sonar.json', '2025-07-09 8:11 Sonar.json', 'junk', 7];
+  assert.deepStrictEqual(SVMServerList.sonarFiles(names, '2026-09-29'), ['2026-09-29 9:05 Sonar.json', '2026-09-29 13:36 Sonar.json']);
+  assert.deepStrictEqual(SVMServerList.sonarFiles(names, '2025-07-09'), ['2025-07-09 8:11 Sonar.json', '2025-07-09 8:11B Sonar.json']);
+  assert.deepStrictEqual(SVMServerList.dates(names), [{ date: '2026-09-29', count: 2 }, { date: '2025-07-09', count: 2 }]);
+  assert.strictEqual(SVMServerList.hashDate('#2026-09-29'), '2026-09-29');
+  assert.strictEqual(SVMServerList.hashDate('#2026-09-29%2013:36'), '2026-09-29 13:36');
+  assert.strictEqual(SVMServerList.hashDate('#x'), null);
+  assert.strictEqual(SVMServerList.hashDate(''), null);
+});

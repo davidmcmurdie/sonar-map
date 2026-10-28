@@ -48,12 +48,11 @@ var SVMCore = (function () {
       try { obj = JSON.parse(input); } catch (e) { throw new Error('Not a JSON file.'); }
     }
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Not a sonar session file.');
-    if (!Array.isArray(obj.tracks) || !Array.isArray(obj.breadcrumb)) {
-      if (isDiveProfile(obj)) throw new Error('This is a Dive Profiler profile, not a sonar session. Only sonar sessions can be shown.');
-      throw new Error('Not a sonar session file (no "tracks" / "breadcrumb").');
-    }
-    var legs = [];
-    for (var i = 0; i < obj.tracks.length; i++) legs.push(parseList(obj.tracks[i]));
+    // Older app versions may write only "tracks" or only "breadcrumb"; either one is enough.
+    if (isDiveProfile(obj) && !Array.isArray(obj.tracks)) throw new Error('This is a Dive Profiler profile, not a sonar session. Only sonar sessions can be shown.');
+    if (!Array.isArray(obj.tracks) && !Array.isArray(obj.breadcrumb)) throw new Error('Not a sonar session file (no "tracks" / "breadcrumb").');
+    var legs = [], tracks = Array.isArray(obj.tracks) ? obj.tracks : [];
+    for (var i = 0; i < tracks.length; i++) legs.push(parseList(tracks[i]));
     var breadcrumb = parseList(obj.breadcrumb);
     var marks = [];
     var rawMarks = Array.isArray(obj.marks) ? obj.marks : [];
@@ -245,12 +244,13 @@ var SVMCore = (function () {
   }
   /** Info popup text for one fix (HTML, escaped). */
   function fixInfoHtml(title, p) {
-    var rows = [['Time', fmtTime(p.time)], ['Position', fmtCoord(p)]];
+    var rows = [['Time', p.time === null ? 'n/a (not recorded in this file)' : fmtTime(p.time)], ['Position', fmtCoord(p)]];
     if (p.acc !== null) rows.push(['Accuracy', p.acc.toFixed(1) + ' m (' + Math.round(p.acc * FT_PER_M) + ' ft)']);
     if (p.spd !== null) rows.push(['Speed', (p.spd * 2.23694).toFixed(1) + ' mph']);
     if (p.src) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
     if (p.sats !== null) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
     if (p.hdg !== null) rows.push(['Heading', Math.round(p.hdg) + '° true']);
+    else if (p.heading !== null && p.acc === null && !p.src) rows.push(['Heading', Math.round(p.heading) + '° (as recorded)']); // older files
     if (p.rej) rows.push(['Not drawn by app', p.rej]);
     if (p.fb) rows.push(['Fallback', p.fb]);
     return '<div class="svm-iw"><b>' + escapeHtml(title) + '</b><table>' + rows.map(function (r) {
@@ -258,7 +258,17 @@ var SVMCore = (function () {
     }).join('') + '</table></div>';
   }
 
+  /** "2026-09-29 13:36 Sonar.json" -> {date:'2026-09-29', time:'13:36', label:'2026-09-29 13:36 Sonar', minutes: 816}; null otherwise. */
+  function parseServerName(name) {
+    var m = /^(\d{4}-\d{2}-\d{2}) (\d{1,2})[:.](\d{1,2}(?:\.\d+)?)(?::(\d+(?:\.\d+)?))?([A-Za-z]?) (.+)\.json$/i.exec(String(name || ''));
+    if (!m) return null;
+    var h = parseInt(m[2], 10), mi = Math.floor(parseFloat(m[3]));
+    return { date: m[1], time: h + ':' + pad(mi) + (m[5] || ''), who: m[6], label: String(name).replace(/\.json$/i, ''),
+      minutes: h * 60 + mi + (m[5] ? 0.5 : 0) };
+  }
+
   return {
+    parseServerName: parseServerName,
     FT_PER_M: FT_PER_M, M_PER_FT: M_PER_FT, BLIND_ZONE_FT: BLIND_ZONE_FT,
     parsePoint: parsePoint, parseSession: parseSession, isDiveProfile: isDiveProfile,
     haversine: haversine, accepted: accepted, pathLength: pathLength, median: median,

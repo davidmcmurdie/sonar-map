@@ -101,6 +101,13 @@ function SVMApp(root, adapter) {
 
   function renderList() {
     var list = q('.svm-list');
+    // Rejected-fix toggle only makes sense if a loaded file has rejected fixes (older files never do).
+    var rejBox = q('[data-opt=rejected]'), anyRej = sessions.some(function (x) { return x.stats.rejected > 0; });
+    if (rejBox) {
+      rejBox.disabled = !anyRej;
+      var rl = rejBox.closest ? rejBox.closest('label') : null;
+      if (rl) { rl.style.opacity = anyRej ? '' : '0.5'; rl.title = anyRej ? 'Shows, in grey, fixes the app rejected as too inaccurate and did not draw' : 'None of the loaded files has rejected fixes (older files do not record them)'; }
+    }
     if (!sessions.length) {
       list.innerHTML = '<p class="svm-empty">No sessions loaded. Use <b>Open session files…</b> or drop exported sonar session (.json) files onto this box.</p>';
       return;
@@ -124,19 +131,19 @@ function SVMApp(root, adapter) {
         '<div class="svm-item-btns"><button type="button" class="svm-btn svm-small" data-act="zoom">Zoom to this file</button>' +
         '<button type="button" class="svm-btn svm-small" data-act="remove">Remove from map</button></div>' +
         '<table class="svm-stats">' +
-        row('Started', C.fmtTime(st.start)) +
-        row('Duration', C.fmtDuration(st.durationMs)) +
+        row('Started', st.start !== null ? C.fmtTime(st.start) : sess.nameStart ? sess.nameStart + ' (from file name)' : 'n/a (no times in file)') +
+        row('Duration', st.durationMs !== null ? C.fmtDuration(st.durationMs) : 'n/a (no times in file)') +
         row('Fixes', String(st.fixes)) +
         legRows +
         (st.legs.length ? row('Sonar total', C.fmtDist(st.sonarDistanceM)) : row('Sonar legs', 'none recorded')) +
-        row('Full path', C.fmtDist(st.pathDistanceM)) +
-        row('GPS source', srcs) +
-        row('Median accuracy', st.medianAcc !== null ? st.medianAcc.toFixed(1) + ' m (' + Math.round(st.medianAcc * C.FT_PER_M) + ' ft)' : 'not recorded') +
-        row('Rejected fixes', rej) +
+        row('Full path', sess.s.breadcrumb.length ? C.fmtDist(st.pathDistanceM) : 'n/a (not recorded in this file)') +
+        (st.hasDiagnostics ? row('GPS source', srcs) +
+          row('Median accuracy', st.medianAcc !== null ? st.medianAcc.toFixed(1) + ' m (' + Math.round(st.medianAcc * C.FT_PER_M) + ' ft)' : 'not recorded') +
+          row('Rejected fixes', rej) : '') +
         (st.rawGpsSetting !== null ? row('Raw GPS switch', st.rawGpsSetting ? 'on' : 'off') : '') +
         row('Marks', String(st.marks)) +
         '</table>' +
-        (st.hasDiagnostics ? '' : '<p class="svm-warn">Older file: no per-fix GPS details, so accuracy and source are unknown.</p>');
+        (st.hasDiagnostics ? '' : '<p class="svm-warn">Older file: GPS accuracy, source and rejected fixes were not recorded' + (st.start === null ? ', nor fix times' : '') + '.</p>');
       el.querySelector('.svm-show input').addEventListener('change', function (e) {
         sess.visible = e.target.checked; draw(sess);
       });
@@ -160,7 +167,9 @@ function SVMApp(root, adapter) {
     files.forEach(function (f) {
       try {
         var s = C.parseSession(f.text, f.name);
-        var sess = { id: nextId++, s: s, stats: C.sessionStats(s), color: COLORS[(nextId - 2) % COLORS.length], visible: true, layers: [] };
+        if (f.label) s.fileName = f.label;
+        var sess = { id: nextId++, s: s, stats: C.sessionStats(s), color: COLORS[(nextId - 2) % COLORS.length], visible: true, layers: [],
+          nameStart: f.nameStart || null, server: !!f.server };
         if (!sess.stats.fixes) throw new Error('The file has no GPS fixes.');
         sessions.push(sess); added.push(sess);
       } catch (e) { errs.push(f.name + ': ' + e.message); }
@@ -191,9 +200,8 @@ function SVMApp(root, adapter) {
   Array.prototype.forEach.call(root.querySelectorAll('[data-opt]'), function (el) {
     el.addEventListener('change', redrawAll);
   });
-  q('[data-act=clear]').addEventListener('click', function () {
-    sessions.forEach(clearLayers); sessions = []; showErrors([]); renderList();
-  });
+  function clearAll() { sessions.forEach(clearLayers); sessions = []; showErrors([]); renderList(); }
+  q('[data-act=clear]').addEventListener('click', clearAll);
   q('[data-act=fit]').addEventListener('click', function () { fit(sessions); });
   ['dragenter', 'dragover'].forEach(function (ev) {
     root.addEventListener(ev, function (e) { e.preventDefault(); root.classList.add('svm-dragging'); });
@@ -208,6 +216,13 @@ function SVMApp(root, adapter) {
   root.addEventListener('drop', function (e) { if (e.dataTransfer) readFiles(e.dataTransfer.files); });
   renderList();
 
-  return { addTexts: addTexts, sessions: function () { return sessions; }, redraw: redrawAll };
+  return { addTexts: addTexts, sessions: function () { return sessions; }, redraw: redrawAll, clear: clearAll, showErrors: showErrors,
+    removeWhere: function (pred) {
+      var gone = sessions.filter(pred);
+      if (!gone.length) return;
+      gone.forEach(clearLayers);
+      sessions = sessions.filter(function (x) { return gone.indexOf(x) < 0; });
+      showErrors([]); renderList();
+    } };
 }
 /* ===== SVM UI END ===== */
