@@ -180,3 +180,21 @@ test('server file names and lister filtering', () => {
   assert.strictEqual(SVMServerList.hashDate('#x'), null);
   assert.strictEqual(SVMServerList.hashDate(''), null);
 });
+
+test('shared view link parsing', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'acso-server.js'), 'utf8');
+  const L = new Function('SVMCore', src + '\nreturn SVMServerList;')(C);
+  assert.strictEqual(L.parseShare('', '#2026-09-29'), null);
+  assert.strictEqual(L.parseShare('?foo=1', ''), null);
+  const files = (r) => r.items.map((i) => i.file || i.date);
+  assert.deepStrictEqual(files(L.parseShare('?share=2026-09-29_13:36,2026-10-21_12:08', '')), ['2026-09-29 13:36 Sonar.json', '2026-10-21 12:08 Sonar.json']);
+  assert.deepStrictEqual(files(L.parseShare('?share', '#2026-09-29')), ['2026-09-29']);
+  assert.deepStrictEqual(files(L.parseShare('', '#2026-09-29&share')), ['2026-09-29']);
+  assert.deepStrictEqual(files(L.parseShare('?SHARE=2026-09-29+13.36;2026-10-27%201015', '')), ['2026-09-29 13:36 Sonar.json', '2026-10-27 10:15 Sonar.json']);
+  assert.deepStrictEqual(files(L.parseShare('?share=2025-07-09_8:11B', '#2026-01-01')), ['2025-07-09 8:11B Sonar.json']); // query list wins over hash
+  const bad = L.parseShare('?share=../etc,2026-09-29_ab,2026-09-29', '');
+  assert.deepStrictEqual(bad.bad, ['../etc', '2026-09-29_ab']);
+  assert.deepStrictEqual(files(bad), ['2026-09-29']);
+  assert.strictEqual(L.shareToken('2025-07-09 8:11B Sonar.json'), '2025-07-09_8:11B');
+  assert.strictEqual(L.shareToken('2026-09-29 10:00 Some Diver.json'), null);
+});

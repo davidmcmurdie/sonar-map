@@ -334,16 +334,16 @@ var SVMCore = (function () {
     });
   }
   /** Info popup text for one fix (HTML, escaped). */
-  function fixInfoHtml(title, p) {
+  function fixInfoHtml(title, p, simple) {
     var rows = [['Time', p.time === null ? 'n/a (not recorded in this file)' : fmtTime(p.time)], ['Position', fmtCoord(p)]];
     if (p.acc !== null) rows.push(['Accuracy', p.acc.toFixed(1) + ' m (' + Math.round(p.acc * FT_PER_M) + ' ft)']);
     if (p.spd !== null) rows.push(['Speed', (p.spd * 2.23694).toFixed(1) + ' mph']);
-    if (p.src) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
-    if (p.sats !== null) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
+    if (p.src && !simple) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
+    if (p.sats !== null && !simple) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
     if (p.hdg !== null) rows.push(['Heading', Math.round(p.hdg) + '° true']);
     else if (p.heading !== null && p.acc === null && !p.src) rows.push(['Heading', Math.round(p.heading) + '° (as recorded)']); // older files
-    if (p.rej) rows.push(['Not drawn by app', p.rej]);
-    if (p.fb) rows.push(['Fallback', p.fb]);
+    if (p.rej && !simple) rows.push(['Not drawn by app', p.rej]);
+    if (p.fb && !simple) rows.push(['Fallback', p.fb]);
     return '<div class="svm-iw"><b>' + escapeHtml(title) + '</b><table>' + rows.map(function (r) {
       return '<tr><td>' + escapeHtml(r[0]) + '</td><td>' + escapeHtml(r[1]) + '</td></tr>';
     }).join('') + '</table></div>';
@@ -374,6 +374,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = SVMCore;
 /* ===== SVM UI (DOM + drawing through a small map adapter; same code for Google Maps and the Leaflet preview) ===== */
 function SVMApp(root, adapter) {
   'use strict';
+  var onChange = null; // optional callback after the session list changes (acso page: share link)
   var C = SVMCore;
   var COLORS = ['#ffeb3b', '#00e5ff', '#ff4081', '#76ff03', '#ff9100', '#e040fb', '#ffffff', '#40c4ff'];
   var q = function (sel) { return root.querySelector(sel); };
@@ -381,10 +382,13 @@ function SVMApp(root, adapter) {
   var sessions = [];
   var nextId = 1;
 
+  // Shared view (acso page): set by the server loader as a class on root; hides file loading and GPS internals.
+  function shared() { return root.classList.contains('svm-shared'); }
+  function info(title, p) { return C.fixInfoHtml(title, p, shared()); }
   function readOpts() {
     opts.breadcrumb = q('[data-opt=breadcrumb]').checked;
     opts.swath = q('[data-opt=swath]').checked;
-    opts.rejected = q('[data-opt=rejected]').checked;
+    opts.rejected = q('[data-opt=rejected]').checked && !shared();
     opts.marks = q('[data-opt=marks]').checked;
     opts.range = parseInt(q('[data-opt=range]').value, 10) || 50;
   }
@@ -413,7 +417,7 @@ function SVMApp(root, adapter) {
       var h = adapter.polyline(bc, { color: color, weight: 2, opacity: 0.75, dashed: true });
       adapter.onClick(h, function (ll) {
         var n = C.nearestPoint(bc, ll.lat, ll.lng);
-        if (n) adapter.openInfo(n.point, C.fixInfoHtml(s.fileName + ' · full path fix ' + (n.index + 1), n.point));
+        if (n) adapter.openInfo(n.point, info(s.fileName + ' · full path fix ' + (n.index + 1), n.point));
       });
       L.push(h);
     }
@@ -425,24 +429,24 @@ function SVMApp(root, adapter) {
       var h = adapter.polyline(good, { color: color, weight: 4, opacity: 1 });
       adapter.onClick(h, function (ll) {
         var n = C.nearestPoint(good, ll.lat, ll.lng);
-        if (n) adapter.openInfo(n.point, C.fixInfoHtml(legLabel(sess, i) + ', fix ' + (n.index + 1), n.point));
+        if (n) adapter.openInfo(n.point, info(legLabel(sess, i) + ', fix ' + (n.index + 1), n.point));
       });
       L.push(h);
       var a = good[0], b = good[good.length - 1];
-      L.push(infoMarker(a, { kind: 'start', label: String(i + 1) }, C.fixInfoHtml(legLabel(sess, i) + ' start', a)));
-      L.push(infoMarker(b, { kind: 'end' }, C.fixInfoHtml(legLabel(sess, i) + ' end', b)));
+      L.push(infoMarker(a, { kind: 'start', label: String(i + 1) }, info(legLabel(sess, i) + ' start', a)));
+      L.push(infoMarker(b, { kind: 'end' }, info(legLabel(sess, i) + ' end', b)));
     });
     if (!drewLeg && s.breadcrumb.length) { // no sonar legs: mark where the session started / ended
       var bcg = C.accepted(s.breadcrumb);
       if (bcg.length) {
-        L.push(infoMarker(bcg[0], { kind: 'start', label: 'S' }, C.fixInfoHtml(s.fileName + ' · session start', bcg[0])));
-        L.push(infoMarker(bcg[bcg.length - 1], { kind: 'end' }, C.fixInfoHtml(s.fileName + ' · session end', bcg[bcg.length - 1])));
+        L.push(infoMarker(bcg[0], { kind: 'start', label: 'S' }, info(s.fileName + ' · session start', bcg[0])));
+        L.push(infoMarker(bcg[bcg.length - 1], { kind: 'end' }, info(s.fileName + ' · session end', bcg[bcg.length - 1])));
       }
     }
     if (opts.rejected) {
       var all = s.breadcrumb.concat([].concat.apply([], s.legs));
       all.filter(function (p) { return p.rej; }).forEach(function (p) {
-        L.push(infoMarker(p, { kind: 'rej' }, C.fixInfoHtml(s.fileName + ' · rejected fix', p)));
+        L.push(infoMarker(p, { kind: 'rej' }, info(s.fileName + ' · rejected fix', p)));
       });
     }
     if (opts.marks) {
@@ -482,6 +486,8 @@ function SVMApp(root, adapter) {
       if (rl) { rl.style.opacity = anyRej ? '' : '0.5'; rl.title = anyRej ? 'Shows, in grey, fixes the app rejected as too inaccurate and did not draw' : 'None of the loaded files has rejected fixes (older files do not record them)'; }
     }
     if (!sessions.length) {
+      if (onChange) onChange();
+      if (shared()) { list.innerHTML = '<p class="svm-empty">No sessions to show.</p>'; return; }
       list.innerHTML = '<p class="svm-empty">No sessions loaded. Use <b>Open session files…</b> or drop exported sonar session (.json) files onto this box.</p>';
       return;
     }
@@ -502,7 +508,7 @@ function SVMApp(root, adapter) {
         '<label class="svm-show"><input type="checkbox" ' + (sess.visible ? 'checked' : '') + '> Show</label>' +
         '<span class="svm-name" title="' + C.escapeHtml(sess.s.fileName) + '">' + C.escapeHtml(sess.s.fileName) + '</span></div>' +
         '<div class="svm-item-btns"><button type="button" class="svm-btn svm-small" data-act="zoom">Zoom to this file</button>' +
-        '<button type="button" class="svm-btn svm-small" data-act="remove">Remove from map</button></div>' +
+        (shared() ? '' : '<button type="button" class="svm-btn svm-small" data-act="remove">Remove from map</button>') + '</div>' +
         '<table class="svm-stats">' +
         row('Started', st.start !== null ? C.fmtTime(st.start) : sess.nameStart ? sess.nameStart + ' (from file name)' : 'n/a (no times in file)') +
         row('Duration', st.durationMs !== null ? C.fmtDuration(st.durationMs) : 'n/a (no times in file)') +
@@ -510,22 +516,26 @@ function SVMApp(root, adapter) {
         legRows +
         (st.legs.length ? row('Sonar total', C.fmtDist(st.sonarDistanceM)) : row('Sonar legs', 'none recorded')) +
         row('Full path', sess.s.breadcrumb.length ? C.fmtDist(st.pathDistanceM) : 'n/a (not recorded in this file)') +
-        (st.hasDiagnostics ? row('GPS source', srcs) +
+        (st.hasDiagnostics && shared() ? row('GPS accuracy (median)', st.medianAcc !== null ? st.medianAcc.toFixed(1) + ' m (' + Math.round(st.medianAcc * C.FT_PER_M) + ' ft)' : 'n/a') : '') +
+        (st.hasDiagnostics && !shared() ? row('GPS source', srcs) +
           row('Median accuracy', st.medianAcc !== null ? st.medianAcc.toFixed(1) + ' m (' + Math.round(st.medianAcc * C.FT_PER_M) + ' ft)' : 'not recorded') +
           row('Rejected fixes', rej) : '') +
-        (st.rawGpsSetting !== null ? row('Raw GPS switch', st.rawGpsSetting ? 'on' : 'off') : '') +
+        (st.rawGpsSetting !== null && !shared() ? row('Raw GPS switch', st.rawGpsSetting ? 'on' : 'off') : '') +
         row('Marks', String(st.marks)) +
         '</table>' +
-        (st.hasDiagnostics ? '' : '<p class="svm-warn">Older file: GPS accuracy, source and rejected fixes were not recorded' + (st.start === null ? ', nor fix times' : '') + '.</p>');
+        (st.hasDiagnostics || shared() ? '' : '<p class="svm-warn">Older file: GPS accuracy, source and rejected fixes were not recorded' + (st.start === null ? ', nor fix times' : '') + '.</p>');
       el.querySelector('.svm-show input').addEventListener('change', function (e) {
         sess.visible = e.target.checked; draw(sess);
+        if (onChange) onChange();
       });
       el.querySelector('[data-act=zoom]').addEventListener('click', function () { fit([sess]); });
-      el.querySelector('[data-act=remove]').addEventListener('click', function () {
+      var rm = el.querySelector('[data-act=remove]');
+      if (rm) rm.addEventListener('click', function () {
         clearLayers(sess); sessions.splice(sessions.indexOf(sess), 1); renderList();
       });
       list.appendChild(el);
     });
+    if (onChange) onChange();
   }
 
   function showErrors(errs) {
@@ -542,7 +552,7 @@ function SVMApp(root, adapter) {
         var s = C.parseSession(f.text, f.name);
         if (f.label) s.fileName = f.label;
         var sess = { id: nextId++, s: s, stats: C.sessionStats(s), color: COLORS[(nextId - 2) % COLORS.length], visible: true, layers: [],
-          nameStart: f.nameStart || null, server: !!f.server };
+          nameStart: f.nameStart || null, server: !!f.server, serverName: f.server ? f.name : null };
         if (!sess.stats.fixes) throw new Error('The file has no GPS fixes.');
         sessions.push(sess); added.push(sess);
       } catch (e) { errs.push(f.name + ': ' + e.message); }
@@ -556,6 +566,7 @@ function SVMApp(root, adapter) {
   }
 
   function readFiles(fileList) {
+    if (shared()) return; // shared view shows only the linked sessions
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
     var out = [], left = files.length;
@@ -590,6 +601,7 @@ function SVMApp(root, adapter) {
   renderList();
 
   return { addTexts: addTexts, sessions: function () { return sessions; }, redraw: redrawAll, clear: clearAll, showErrors: showErrors,
+    onChange: function (fn) { onChange = fn; },
     removeWhere: function (pred) {
       var gone = sessions.filter(pred);
       if (!gone.length) return;

@@ -77,6 +77,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 #svm-root .svm-server label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 #svm-root .svm-server select { font: inherit; font-size: 15px; padding: 5px 8px; border-radius: 4px; border: 1px solid #456; background: #1c2733; color: var(--svm-fg); }
 #svm-root .svm-server-status { color: var(--svm-mute); font-size: 13px; }
+#svm-root .svm-share { flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0 0 8px; }
+#svm-root .svm-share input { flex: 1 1 360px; min-width: 0; font: inherit; font-size: 13px; padding: 5px 7px; border-radius: 4px; border: 1px solid #456; background: #0b1118; color: var(--svm-fg); }
+#svm-root .svm-share-msg { color: #a5d6a7; font-size: 12.5px; }
+#svm-root .svm-btn:disabled { opacity: .45; cursor: default; }
+/* shared view (?share=...): only the linked sessions; no browsing, no file opening, no GPS internals */
+#svm-root.svm-shared .svm-date, #svm-root.svm-shared .svm-share-btn, #svm-root.svm-shared .svm-share,
+#svm-root.svm-shared .svm-file, #svm-root.svm-shared .svm-hint, #svm-root.svm-shared [data-act=clear],
+#svm-root.svm-shared .svm-leg-rej, #svm-root.svm-shared .svm-note { display: none !important; }
+#svm-root.svm-shared .svm-opt-rej { display: none !important; }
+.svm-shared-page .page-header h1 { font-size: 21px; }
 #svm-root .svm-map, #svm-root .svm-panel { height: calc(100vh - 200px); height: calc(100dvh - 200px); }
 @media (max-width: 760px) { #svm-root .svm-map { height: 60vh; height: 60dvh; } #svm-root .svm-panel { height: auto; } }
 </style>
@@ -89,8 +99,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 <main class="page-main">
 <div id="svm-root">
   <div class="svm-server">
-    <label title="Loads that day's sonar sessions from the team server">Sessions on <select data-act="date"><option value="">Loading…</option></select></label>
+    <label class="svm-date" title="Loads that day's sonar sessions from the team server">Sessions on <select data-act="date"><option value="">Loading…</option></select></label>
     <span class="svm-server-status" role="status"></span>
+    <button type="button" class="svm-btn svm-small svm-share-btn" data-act="share" disabled>Copy share link</button>
+  </div>
+  <div class="svm-share" style="display:none">
+    <input type="text" readonly aria-label="Share link">
+    <button type="button" class="svm-btn svm-small" data-act="share-open" title="Opens the link in a new tab so you can check what recipients will see">Open</button>
+    <span class="svm-share-msg"></span>
   </div>
   <div class="svm-bar">
     <label class="svm-btn svm-primary svm-file">Open session files…<input type="file" multiple accept=".json,application/json,text/plain"></label>
@@ -98,7 +114,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
     <label title="Draws every recorded fix, including turnarounds, as a dotted line"><input type="checkbox" data-opt="breadcrumb" checked> Full path (with turns)</label>
     <label title="Shades the area the side-scan covers on each side of the sonar legs. Display only: the file does not store the range."><input type="checkbox" data-opt="swath"> Sonar swath</label>
     <label title="Swath range each side of the track (the 5 ft blind zone under the boat is left clear)">Range <select data-opt="range"><option value="30">30 ft</option><option value="50" selected>50 ft</option><option value="70">70 ft</option><option value="90">90 ft</option></select></label>
-    <label title="Shows, in grey, fixes the app rejected as too inaccurate and did not draw"><input type="checkbox" data-opt="rejected"> Rejected fixes</label>
+    <label class="svm-opt-rej" title="Shows, in grey, fixes the app rejected as too inaccurate and did not draw"><input type="checkbox" data-opt="rejected"> Rejected fixes</label>
     <label title="Shows marks dropped during the session"><input type="checkbox" data-opt="marks" checked> Marks</label>
     <button type="button" class="svm-btn" data-act="fit" title="Zooms the map to fit all loaded files">Fit all</button>
     <button type="button" class="svm-btn" data-act="clear" title="Removes all files from this page. Nothing is stored or uploaded.">Clear all</button>
@@ -113,7 +129,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
     <span><i class="svm-dot" style="background:#00c853"></i>leg start (number = leg)</span>
     <span><i class="svm-dot" style="background:#d50000"></i>leg end</span>
     <span><i class="svm-dot" style="background:#ff1744"></i>mark</span>
-    <span><i class="svm-dot" style="background:#9e9e9e"></i>rejected fix</span>
+    <span class="svm-leg-rej"><i class="svm-dot" style="background:#9e9e9e"></i>rejected fix</span>
     <span>Tap a line or marker for details. Times are in this device's time zone.</span>
   </div>
   <p class="svm-note">Sessions for the chosen date are read from this site's dive profile store. Files you open from this device are read only in your browser and are never uploaded. Map imagery comes from the map provider.</p>
@@ -367,16 +383,16 @@ var SVMCore = (function () {
     });
   }
   /** Info popup text for one fix (HTML, escaped). */
-  function fixInfoHtml(title, p) {
+  function fixInfoHtml(title, p, simple) {
     var rows = [['Time', p.time === null ? 'n/a (not recorded in this file)' : fmtTime(p.time)], ['Position', fmtCoord(p)]];
     if (p.acc !== null) rows.push(['Accuracy', p.acc.toFixed(1) + ' m (' + Math.round(p.acc * FT_PER_M) + ' ft)']);
     if (p.spd !== null) rows.push(['Speed', (p.spd * 2.23694).toFixed(1) + ' mph']);
-    if (p.src) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
-    if (p.sats !== null) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
+    if (p.src && !simple) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
+    if (p.sats !== null && !simple) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
     if (p.hdg !== null) rows.push(['Heading', Math.round(p.hdg) + '° true']);
     else if (p.heading !== null && p.acc === null && !p.src) rows.push(['Heading', Math.round(p.heading) + '° (as recorded)']); // older files
-    if (p.rej) rows.push(['Not drawn by app', p.rej]);
-    if (p.fb) rows.push(['Fallback', p.fb]);
+    if (p.rej && !simple) rows.push(['Not drawn by app', p.rej]);
+    if (p.fb && !simple) rows.push(['Fallback', p.fb]);
     return '<div class="svm-iw"><b>' + escapeHtml(title) + '</b><table>' + rows.map(function (r) {
       return '<tr><td>' + escapeHtml(r[0]) + '</td><td>' + escapeHtml(r[1]) + '</td></tr>';
     }).join('') + '</table></div>';
@@ -407,6 +423,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = SVMCore;
 /* ===== SVM UI (DOM + drawing through a small map adapter; same code for Google Maps and the Leaflet preview) ===== */
 function SVMApp(root, adapter) {
   'use strict';
+  var onChange = null; // optional callback after the session list changes (acso page: share link)
   var C = SVMCore;
   var COLORS = ['#ffeb3b', '#00e5ff', '#ff4081', '#76ff03', '#ff9100', '#e040fb', '#ffffff', '#40c4ff'];
   var q = function (sel) { return root.querySelector(sel); };
@@ -414,10 +431,13 @@ function SVMApp(root, adapter) {
   var sessions = [];
   var nextId = 1;
 
+  // Shared view (acso page): set by the server loader as a class on root; hides file loading and GPS internals.
+  function shared() { return root.classList.contains('svm-shared'); }
+  function info(title, p) { return C.fixInfoHtml(title, p, shared()); }
   function readOpts() {
     opts.breadcrumb = q('[data-opt=breadcrumb]').checked;
     opts.swath = q('[data-opt=swath]').checked;
-    opts.rejected = q('[data-opt=rejected]').checked;
+    opts.rejected = q('[data-opt=rejected]').checked && !shared();
     opts.marks = q('[data-opt=marks]').checked;
     opts.range = parseInt(q('[data-opt=range]').value, 10) || 50;
   }
@@ -446,7 +466,7 @@ function SVMApp(root, adapter) {
       var h = adapter.polyline(bc, { color: color, weight: 2, opacity: 0.75, dashed: true });
       adapter.onClick(h, function (ll) {
         var n = C.nearestPoint(bc, ll.lat, ll.lng);
-        if (n) adapter.openInfo(n.point, C.fixInfoHtml(s.fileName + ' · full path fix ' + (n.index + 1), n.point));
+        if (n) adapter.openInfo(n.point, info(s.fileName + ' · full path fix ' + (n.index + 1), n.point));
       });
       L.push(h);
     }
@@ -458,24 +478,24 @@ function SVMApp(root, adapter) {
       var h = adapter.polyline(good, { color: color, weight: 4, opacity: 1 });
       adapter.onClick(h, function (ll) {
         var n = C.nearestPoint(good, ll.lat, ll.lng);
-        if (n) adapter.openInfo(n.point, C.fixInfoHtml(legLabel(sess, i) + ', fix ' + (n.index + 1), n.point));
+        if (n) adapter.openInfo(n.point, info(legLabel(sess, i) + ', fix ' + (n.index + 1), n.point));
       });
       L.push(h);
       var a = good[0], b = good[good.length - 1];
-      L.push(infoMarker(a, { kind: 'start', label: String(i + 1) }, C.fixInfoHtml(legLabel(sess, i) + ' start', a)));
-      L.push(infoMarker(b, { kind: 'end' }, C.fixInfoHtml(legLabel(sess, i) + ' end', b)));
+      L.push(infoMarker(a, { kind: 'start', label: String(i + 1) }, info(legLabel(sess, i) + ' start', a)));
+      L.push(infoMarker(b, { kind: 'end' }, info(legLabel(sess, i) + ' end', b)));
     });
     if (!drewLeg && s.breadcrumb.length) { // no sonar legs: mark where the session started / ended
       var bcg = C.accepted(s.breadcrumb);
       if (bcg.length) {
-        L.push(infoMarker(bcg[0], { kind: 'start', label: 'S' }, C.fixInfoHtml(s.fileName + ' · session start', bcg[0])));
-        L.push(infoMarker(bcg[bcg.length - 1], { kind: 'end' }, C.fixInfoHtml(s.fileName + ' · session end', bcg[bcg.length - 1])));
+        L.push(infoMarker(bcg[0], { kind: 'start', label: 'S' }, info(s.fileName + ' · session start', bcg[0])));
+        L.push(infoMarker(bcg[bcg.length - 1], { kind: 'end' }, info(s.fileName + ' · session end', bcg[bcg.length - 1])));
       }
     }
     if (opts.rejected) {
       var all = s.breadcrumb.concat([].concat.apply([], s.legs));
       all.filter(function (p) { return p.rej; }).forEach(function (p) {
-        L.push(infoMarker(p, { kind: 'rej' }, C.fixInfoHtml(s.fileName + ' · rejected fix', p)));
+        L.push(infoMarker(p, { kind: 'rej' }, info(s.fileName + ' · rejected fix', p)));
       });
     }
     if (opts.marks) {
@@ -515,6 +535,8 @@ function SVMApp(root, adapter) {
       if (rl) { rl.style.opacity = anyRej ? '' : '0.5'; rl.title = anyRej ? 'Shows, in grey, fixes the app rejected as too inaccurate and did not draw' : 'None of the loaded files has rejected fixes (older files do not record them)'; }
     }
     if (!sessions.length) {
+      if (onChange) onChange();
+      if (shared()) { list.innerHTML = '<p class="svm-empty">No sessions to show.</p>'; return; }
       list.innerHTML = '<p class="svm-empty">No sessions loaded. Use <b>Open session files…</b> or drop exported sonar session (.json) files onto this box.</p>';
       return;
     }
@@ -535,7 +557,7 @@ function SVMApp(root, adapter) {
         '<label class="svm-show"><input type="checkbox" ' + (sess.visible ? 'checked' : '') + '> Show</label>' +
         '<span class="svm-name" title="' + C.escapeHtml(sess.s.fileName) + '">' + C.escapeHtml(sess.s.fileName) + '</span></div>' +
         '<div class="svm-item-btns"><button type="button" class="svm-btn svm-small" data-act="zoom">Zoom to this file</button>' +
-        '<button type="button" class="svm-btn svm-small" data-act="remove">Remove from map</button></div>' +
+        (shared() ? '' : '<button type="button" class="svm-btn svm-small" data-act="remove">Remove from map</button>') + '</div>' +
         '<table class="svm-stats">' +
         row('Started', st.start !== null ? C.fmtTime(st.start) : sess.nameStart ? sess.nameStart + ' (from file name)' : 'n/a (no times in file)') +
         row('Duration', st.durationMs !== null ? C.fmtDuration(st.durationMs) : 'n/a (no times in file)') +
@@ -543,22 +565,26 @@ function SVMApp(root, adapter) {
         legRows +
         (st.legs.length ? row('Sonar total', C.fmtDist(st.sonarDistanceM)) : row('Sonar legs', 'none recorded')) +
         row('Full path', sess.s.breadcrumb.length ? C.fmtDist(st.pathDistanceM) : 'n/a (not recorded in this file)') +
-        (st.hasDiagnostics ? row('GPS source', srcs) +
+        (st.hasDiagnostics && shared() ? row('GPS accuracy (median)', st.medianAcc !== null ? st.medianAcc.toFixed(1) + ' m (' + Math.round(st.medianAcc * C.FT_PER_M) + ' ft)' : 'n/a') : '') +
+        (st.hasDiagnostics && !shared() ? row('GPS source', srcs) +
           row('Median accuracy', st.medianAcc !== null ? st.medianAcc.toFixed(1) + ' m (' + Math.round(st.medianAcc * C.FT_PER_M) + ' ft)' : 'not recorded') +
           row('Rejected fixes', rej) : '') +
-        (st.rawGpsSetting !== null ? row('Raw GPS switch', st.rawGpsSetting ? 'on' : 'off') : '') +
+        (st.rawGpsSetting !== null && !shared() ? row('Raw GPS switch', st.rawGpsSetting ? 'on' : 'off') : '') +
         row('Marks', String(st.marks)) +
         '</table>' +
-        (st.hasDiagnostics ? '' : '<p class="svm-warn">Older file: GPS accuracy, source and rejected fixes were not recorded' + (st.start === null ? ', nor fix times' : '') + '.</p>');
+        (st.hasDiagnostics || shared() ? '' : '<p class="svm-warn">Older file: GPS accuracy, source and rejected fixes were not recorded' + (st.start === null ? ', nor fix times' : '') + '.</p>');
       el.querySelector('.svm-show input').addEventListener('change', function (e) {
         sess.visible = e.target.checked; draw(sess);
+        if (onChange) onChange();
       });
       el.querySelector('[data-act=zoom]').addEventListener('click', function () { fit([sess]); });
-      el.querySelector('[data-act=remove]').addEventListener('click', function () {
+      var rm = el.querySelector('[data-act=remove]');
+      if (rm) rm.addEventListener('click', function () {
         clearLayers(sess); sessions.splice(sessions.indexOf(sess), 1); renderList();
       });
       list.appendChild(el);
     });
+    if (onChange) onChange();
   }
 
   function showErrors(errs) {
@@ -575,7 +601,7 @@ function SVMApp(root, adapter) {
         var s = C.parseSession(f.text, f.name);
         if (f.label) s.fileName = f.label;
         var sess = { id: nextId++, s: s, stats: C.sessionStats(s), color: COLORS[(nextId - 2) % COLORS.length], visible: true, layers: [],
-          nameStart: f.nameStart || null, server: !!f.server };
+          nameStart: f.nameStart || null, server: !!f.server, serverName: f.server ? f.name : null };
         if (!sess.stats.fixes) throw new Error('The file has no GPS fixes.');
         sessions.push(sess); added.push(sess);
       } catch (e) { errs.push(f.name + ': ' + e.message); }
@@ -589,6 +615,7 @@ function SVMApp(root, adapter) {
   }
 
   function readFiles(fileList) {
+    if (shared()) return; // shared view shows only the linked sessions
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
     var out = [], left = files.length;
@@ -623,6 +650,7 @@ function SVMApp(root, adapter) {
   renderList();
 
   return { addTexts: addTexts, sessions: function () { return sessions; }, redraw: redrawAll, clear: clearAll, showErrors: showErrors,
+    onChange: function (fn) { onChange = fn; },
     removeWhere: function (pred) {
       var gone = sessions.filter(pred);
       if (!gone.length) return;
@@ -665,9 +693,14 @@ function SVMLeafletAdapter(mapEl) {
 }
 /* ===== SVM Leaflet adapter END ===== */
 
-/* ===== SVM ACSO server loader (acsodiveteam.org /profiler_test/sonar.html#YYYY-MM-DD) =====
- * Reads the date from the URL hash, gets the session list from lister.php, and loads every
- * "<date> <time> Sonar.json" file for that date from /dbase/DiveProfiles/ (read-only GETs).
+/* ===== SVM ACSO server loader (acsodiveteam.org /profiler_test/sonar.html) =====
+ * Normal view:  sonar.html#YYYY-MM-DD  -> date picker; that day's "<date> <time> Sonar.json" files via lister.php.
+ * Shared view:  sonar.html?share=2026-09-29_13:36,2026-10-21_12:08  (or ?share=2026-09-29 for a whole day)
+ *               also accepted: sonar.html?share#<list>  and  sonar.html#<list>&share
+ *   Only the listed sessions are fetched (directly, no lister.php). A bare date needs lister.php, and then only
+ *   that date's sonar files are used. No date picker, no file opening, hash changes are ignored.
+ *   This is a display restriction only: lister.php and /dbase/DiveProfiles/ stay publicly readable.
+ * All requests are read-only GETs.
  */
 var SVMServerList = {
   /** '#2026-09-29' -> '2026-09-29'. Also accepts a longer prefix such as '#2026-09-29 13:36'. */
@@ -698,19 +731,120 @@ var SVMServerList = {
     });
     order.sort().reverse();
     return order.map(function (d) { return { date: d, count: out[d] }; });
+  },
+  /** Raw time part of a server file name: '2026-09-29 13:36 Sonar.json' -> '13:36'. */
+  rawTime: function (name) {
+    var m = /^\d{4}-\d{2}-\d{2} (\S+) Sonar\.json$/i.exec(String(name));
+    return m ? m[1] : null;
+  },
+  /** One share token for a server file: '2026-09-29 13:36 Sonar.json' -> '2026-09-29_13:36'. */
+  shareToken: function (name) {
+    var t = SVMServerList.rawTime(name);
+    return t ? String(name).slice(0, 10) + '_' + t : null;
+  },
+  /**
+   * Shared-view request from location.search / location.hash, or null for the normal view.
+   * Returns { items: [{date, time|null, file|null}], bad: [tokens not understood] }.
+   * Tokens: 2026-09-29 (whole day) or 2026-09-29_13:36 (one session; '_', ' ', '+', 'T' or '@' between
+   * date and time; time 13:36, 13.36, 1336 or 8:11B). Separated by commas, semicolons or spaces after a comma.
+   */
+  parseShare: function (search, hash) {
+    function dec(s) { s = String(s || '').replace(/\+/g, ' '); try { return decodeURIComponent(s); } catch (e) { return s; } }
+    var list = null, flag = false;
+    String(search || '').replace(/^\?/, '').split('&').forEach(function (kv) {
+      var i = kv.indexOf('='), k = dec(i < 0 ? kv : kv.slice(0, i)).trim().toLowerCase();
+      if (k === 'share') { flag = true; if (i >= 0 && dec(kv.slice(i + 1)).trim()) list = dec(kv.slice(i + 1)); }
+    });
+    var h = dec(String(hash || '').replace(/^#/, ''));
+    var hashParts = h.split('&').map(function (x) { return x.trim(); }).filter(Boolean);
+    if (hashParts.some(function (x) { return x.toLowerCase() === 'share'; })) flag = true;
+    if (!flag) return null;
+    if (list === null) list = hashParts.filter(function (x) { return x.toLowerCase() !== 'share'; }).join(',');
+    var items = [], bad = [], seen = {};
+    list.split(/[,;]/).map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (tok) {
+      var m = /^(\d{4}-\d{2}-\d{2})(?:[_ +T@]+([0-9][0-9.:]*[A-Za-z]?))?$/.exec(tok);
+      if (!m) { bad.push(tok); return; }
+      var it, t = m[2];
+      if (t === undefined) it = { date: m[1], time: null, file: null };
+      else {
+        // Times with a colon are used exactly as written (file names are like 13:36 or 8:11B);
+        // 1336 / 13.36 are typing variants of 13:36.
+        if (t.indexOf(':') < 0) {
+          var mm = /^(\d{1,2})\.?(\d{2})([A-Za-z]?)$/.exec(t);
+          if (!mm) { bad.push(tok); return; }
+          t = parseInt(mm[1], 10) + ':' + mm[2] + mm[3];
+        }
+        it = { date: m[1], time: t, file: m[1] + ' ' + t + ' Sonar.json' };
+      }
+      var key = it.file || it.date;
+      if (!seen[key]) { seen[key] = 1; items.push(it); }
+    });
+    return { items: items, bad: bad };
   }
 };
 
 function SVMServerLoader(root, app, cfg) {
   'use strict';
-  var C = SVMCore;
+  var C = SVMCore, L = SVMServerList;
   var q = function (s) { return root.querySelector(s); };
   var sel = q('[data-act=date]'), status = q('.svm-server-status');
-  var names = null, loading = 0;
+  var share = L.parseShare(location.search, location.hash);
   function setStatus(t) { status.textContent = t; }
+  function fetchText(name) {
+    return fetch(cfg.filesBase + encodeURIComponent(name), { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 404 ? 'not found' : 'HTTP ' + r.status);
+      return r.text();
+    }).then(function (t) { return { name: name, text: t }; }, function (e) { return { name: name, error: e.message }; });
+  }
+  function toEntry(r) {
+    var p = C.parseServerName(r.name);
+    return { name: r.name, text: r.text, label: p ? p.label : r.name, nameStart: p ? p.date + ' ' + p.time : null, server: true };
+  }
 
+  /* ---------------- shared view ---------------- */
+  if (share) {
+    root.classList.add('svm-shared');
+    document.documentElement.classList.add('svm-shared-page');
+    var h1 = document.querySelector('.page-header h1'), sub = document.querySelector('.page-header p');
+    var title = cfg.sharedTitle || 'Sonar Search Record';
+    var days = share.items.map(function (i) { return i.date; }).filter(function (d, i, a) { return a.indexOf(d) === i; }).sort();
+    if (h1) h1.textContent = title;
+    if (sub) sub.textContent = days.length ? (days.length === 1 ? 'Search on ' : 'Searches on ') + days.join(', ') : '';
+    document.title = title + (days.length ? ' – ' + days.join(', ') : '');
+    if (!share.items.length) { setStatus('This link does not name any sessions.'); return { shared: true }; }
+    var direct = share.items.filter(function (i) { return i.file; }).map(function (i) { return i.file; });
+    var wholeDays = share.items.filter(function (i) { return !i.file; }).map(function (i) { return i.date; });
+    setStatus('Loading…');
+    // Only when the link names a whole day do we need the list, and then only that day's sonar files are used.
+    var listP = wholeDays.length ? fetch(cfg.lister, { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status); return r.json();
+    }).then(function (names) {
+      var out = [];
+      wholeDays.forEach(function (d) { L.sonarFiles(names, d + ' ').forEach(function (n) { if (n.slice(0, 10) === d) out.push(n); }); });
+      return out;
+    }).catch(function () { return []; }) : Promise.resolve([]);
+    listP.then(function (fromDays) {
+      var files = direct.concat(fromDays.filter(function (n) { return direct.indexOf(n) < 0; }));
+      files = L.sonarFiles(files);
+      return Promise.all(files.map(fetchText)).then(function (res) {
+        var ok = res.filter(function (r) { return !r.error; }).map(toEntry);
+        var n = app.addTexts(ok);
+        var errs = res.filter(function (r) { return r.error; }).map(function (r) {
+          var p = C.parseServerName(r.name); return 'Session ' + (p ? p.date + ' ' + p.time : r.name) + ': ' + r.error + '.';
+        });
+        if (share.bad.length) errs.push('Not understood in the link: ' + share.bad.join(', '));
+        var prev = Array.prototype.map.call(root.querySelectorAll('.svm-errors div'), function (d) { return d.textContent; });
+        if (errs.length) app.showErrors(errs.concat(prev));
+        setStatus(n === 1 ? '1 sonar session.' : n + ' sonar sessions.');
+      });
+    });
+    return { shared: true };
+  }
+
+  /* ---------------- normal view ---------------- */
+  var names = null, loading = 0;
   function fillDates() {
-    var list = SVMServerList.dates(names), cur = SVMServerList.hashDate(location.hash);
+    var list = L.dates(names), cur = L.hashDate(location.hash);
     var curDay = cur ? cur.slice(0, 10) : '';
     var html = '<option value="">Choose a date…</option>';
     if (curDay && !list.some(function (d) { return d.date === curDay; })) html += '<option value="' + C.escapeHtml(curDay) + '">' + C.escapeHtml(curDay) + ' (no sonar sessions)</option>';
@@ -722,33 +856,59 @@ function SVMServerLoader(root, app, cfg) {
   }
 
   function loadDate() {
-    var prefix = SVMServerList.hashDate(location.hash);
+    var prefix = L.hashDate(location.hash);
     if (names) fillDates();
     // Sessions from the server are replaced when the date changes; files opened from this device stay.
     app.removeWhere(function (x) { return x.server; });
     if (!prefix) { setStatus(names ? 'Choose a date to load its sonar sessions from the server.' : ''); return; }
     if (!names) return; // list still loading; called again when it arrives
-    var files = SVMServerList.sonarFiles(names, prefix);
+    var files = L.sonarFiles(names, prefix);
     if (!files.length) { setStatus('No sonar sessions on the server for ' + prefix + '.'); return; }
     var token = ++loading;
     setStatus('Loading ' + files.length + (files.length === 1 ? ' session' : ' sessions') + ' for ' + prefix + '…');
-    Promise.all(files.map(function (n) {
-      return fetch(cfg.filesBase + encodeURIComponent(n), { cache: 'no-cache' }).then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      }).then(function (t) { return { name: n, text: t }; }, function (e) { return { name: n, error: e.message }; });
-    })).then(function (res) {
+    Promise.all(files.map(fetchText)).then(function (res) {
       if (token !== loading) return; // a newer date was chosen meanwhile
-      var ok = res.filter(function (r) { return !r.error; }).map(function (r) {
-        var p = C.parseServerName(r.name);
-        return { name: r.name, text: r.text, label: p.label, nameStart: p.date + ' ' + p.time, server: true };
-      });
-      var n = app.addTexts(ok);
+      var n = app.addTexts(res.filter(function (r) { return !r.error; }).map(toEntry));
       var errs = res.filter(function (r) { return r.error; }).map(function (r) { return r.name + ': could not load (' + r.error + ')'; });
       if (errs.length) app.showErrors(errs.concat(Array.prototype.map.call(root.querySelectorAll('.svm-errors div'), function (d) { return d.textContent; })));
       setStatus(prefix + ': ' + n + ' of ' + files.length + (files.length === 1 ? ' session' : ' sessions') + ' shown.');
     });
   }
+
+  /* Share link: the server sessions currently ticked "Show" (any date loaded so far is replaced on date change,
+     so this is the current date's ticked sessions). Files opened from this device cannot be shared. */
+  var shareBtn = q('[data-act=share]'), shareBox = q('.svm-share'), shareOut = q('.svm-share input'), shareMsg = q('.svm-share-msg');
+  function shareUrl() {
+    var toks = app.sessions().filter(function (x) { return x.server && x.visible && x.serverName; })
+      .map(function (x) { return L.shareToken(x.serverName); }).filter(Boolean);
+    if (!toks.length) return null;
+    return location.origin + location.pathname + '?share=' + toks.join(',');
+  }
+  function updateShareBtn() {
+    var u = shareUrl();
+    shareBtn.disabled = !u;
+    shareBtn.title = u ? 'Copies a link that shows only the ticked sessions, with no date picker' : 'Load a date first (only sessions from the server can be shared)';
+    if (shareBox.style.display !== 'none' && u && shareOut.value !== u) { shareOut.value = u; shareMsg.textContent = 'Selection changed – press Copy share link again.'; }
+  }
+  function copyText(t) {
+    // navigator.clipboard needs https; this site is http, so fall back to execCommand on the selected field.
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return false; });
+    shareOut.focus(); shareOut.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    return Promise.resolve(ok);
+  }
+  shareBtn.addEventListener('click', function () {
+    var u = shareUrl(); if (!u) return;
+    shareBox.style.display = 'flex'; shareOut.value = u;
+    var n = u.split('=')[1].split(',').length;
+    copyText(u).then(function (ok) {
+      shareMsg.textContent = (ok ? 'Copied. ' : 'Select the link and copy it. ') + 'It shows ' + (n === 1 ? 'this 1 session' : 'these ' + n + ' sessions') + ' only. Untick "Show" on a session to leave it out.';
+      shareOut.select();
+    });
+  });
+  q('[data-act=share-open]').addEventListener('click', function () { if (shareOut.value) window.open(shareOut.value, '_blank'); });
+  app.onChange(updateShareBtn);
+  updateShareBtn();
 
   sel.addEventListener('change', function () { if (sel.value) location.hash = sel.value; });
   window.addEventListener('hashchange', loadDate);
@@ -764,12 +924,12 @@ function SVMServerLoader(root, app, cfg) {
     sel.innerHTML = '<option value="">(session list not available)</option>';
     setStatus('Could not get the session list from the server (' + e.message + '). You can still open session files from this device.');
   });
-  return { reload: loadDate };
+  return { reload: loadDate, shared: false };
 }
 /* ===== SVM ACSO server loader END ===== */
   var root = document.getElementById('svm-root');
   var app = SVMApp(root, SVMLeafletAdapter(root.querySelector('.svm-map')));
-  window.__svmApp = app; SVMServerLoader(root, app, { lister: '/dbase/DiveProfiles/lister.php', filesBase: '/dbase/DiveProfiles/' });
+  window.__svmApp = app; SVMServerLoader(root, app, { lister: '/dbase/DiveProfiles/lister.php', filesBase: '/dbase/DiveProfiles/', sharedTitle: 'California Recovery Divers \u2013 Sonar Search Record' });
 })();
 </script>
 </body></html>

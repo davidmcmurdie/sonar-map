@@ -164,12 +164,20 @@ ${rd('adapter-leaflet.js')}
 // acsodiveteam.org drop-in replacement for /profiler_test/sonar.html (#YYYY-MM-DD loads that day's
 // sonar sessions from /dbase/DiveProfiles/ via lister.php). Output: acso/sonar.html (+ test-only Leaflet copy).
 const acsoServer = rd('acso-server.js');
-const acsoCfg = "{ lister: '/dbase/DiveProfiles/lister.php', filesBase: '/dbase/DiveProfiles/' }";
+const acsoCfg = "{ lister: '/dbase/DiveProfiles/lister.php', filesBase: '/dbase/DiveProfiles/', sharedTitle: 'California Recovery Divers \\u2013 Sonar Search Record' }";
 const acsoBar = `<div class="svm-server">
-    <label title="Loads that day's sonar sessions from the team server">Sessions on <select data-act="date"><option value="">Loading…</option></select></label>
+    <label class="svm-date" title="Loads that day's sonar sessions from the team server">Sessions on <select data-act="date"><option value="">Loading…</option></select></label>
     <span class="svm-server-status" role="status"></span>
+    <button type="button" class="svm-btn svm-small svm-share-btn" data-act="share" disabled>Copy share link</button>
+  </div>
+  <div class="svm-share" style="display:none">
+    <input type="text" readonly aria-label="Share link">
+    <button type="button" class="svm-btn svm-small" data-act="share-open" title="Opens the link in a new tab so you can check what recipients will see">Open</button>
+    <span class="svm-share-msg"></span>
   </div>`;
 const acsoMarkup = markup.replace('<div id="svm-root">', '<div id="svm-root">\n  ' + acsoBar)
+  .replace('<label title="Shows, in grey', '<label class="svm-opt-rej" title="Shows, in grey')
+  .replace('<span><i class="svm-dot" style="background:#9e9e9e"></i>rejected fix</span>', '<span class="svm-leg-rej"><i class="svm-dot" style="background:#9e9e9e"></i>rejected fix</span>')
   .replace('Privacy: files are read by this page inside your browser and are never uploaded or sent anywhere.',
     'Sessions for the chosen date are read from this site\'s dive profile store. Files you open from this device are read only in your browser and are never uploaded.');
 const acsoCss = pageCss + `
@@ -177,6 +185,16 @@ const acsoCss = pageCss + `
 #svm-root .svm-server label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 #svm-root .svm-server select { font: inherit; font-size: 15px; padding: 5px 8px; border-radius: 4px; border: 1px solid #456; background: #1c2733; color: var(--svm-fg); }
 #svm-root .svm-server-status { color: var(--svm-mute); font-size: 13px; }
+#svm-root .svm-share { flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0 0 8px; }
+#svm-root .svm-share input { flex: 1 1 360px; min-width: 0; font: inherit; font-size: 13px; padding: 5px 7px; border-radius: 4px; border: 1px solid #456; background: #0b1118; color: var(--svm-fg); }
+#svm-root .svm-share-msg { color: #a5d6a7; font-size: 12.5px; }
+#svm-root .svm-btn:disabled { opacity: .45; cursor: default; }
+/* shared view (?share=...): only the linked sessions; no browsing, no file opening, no GPS internals */
+#svm-root.svm-shared .svm-date, #svm-root.svm-shared .svm-share-btn, #svm-root.svm-shared .svm-share,
+#svm-root.svm-shared .svm-file, #svm-root.svm-shared .svm-hint, #svm-root.svm-shared [data-act=clear],
+#svm-root.svm-shared .svm-leg-rej, #svm-root.svm-shared .svm-note { display: none !important; }
+#svm-root.svm-shared .svm-opt-rej { display: none !important; }
+.svm-shared-page .page-header h1 { font-size: 21px; }
 #svm-root .svm-map, #svm-root .svm-panel { height: calc(100vh - 200px); height: calc(100dvh - 200px); }
 @media (max-width: 760px) { #svm-root .svm-map { height: 60vh; height: 60dvh; } #svm-root .svm-panel { height: auto; } }`;
 const acsoHead = (title) => `<!doctype html>

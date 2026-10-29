@@ -243,16 +243,16 @@ var SVMCore = (function () {
     });
   }
   /** Info popup text for one fix (HTML, escaped). */
-  function fixInfoHtml(title, p) {
+  function fixInfoHtml(title, p, simple) {
     var rows = [['Time', p.time === null ? 'n/a (not recorded in this file)' : fmtTime(p.time)], ['Position', fmtCoord(p)]];
     if (p.acc !== null) rows.push(['Accuracy', p.acc.toFixed(1) + ' m (' + Math.round(p.acc * FT_PER_M) + ' ft)']);
     if (p.spd !== null) rows.push(['Speed', (p.spd * 2.23694).toFixed(1) + ' mph']);
-    if (p.src) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
-    if (p.sats !== null) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
+    if (p.src && !simple) rows.push(['Source', SRC_LABEL[p.src] || p.src]);
+    if (p.sats !== null && !simple) rows.push(['Satellites', p.sats + (p.satsV !== null ? ' used / ' + p.satsV + ' seen' : ' used')]);
     if (p.hdg !== null) rows.push(['Heading', Math.round(p.hdg) + '° true']);
     else if (p.heading !== null && p.acc === null && !p.src) rows.push(['Heading', Math.round(p.heading) + '° (as recorded)']); // older files
-    if (p.rej) rows.push(['Not drawn by app', p.rej]);
-    if (p.fb) rows.push(['Fallback', p.fb]);
+    if (p.rej && !simple) rows.push(['Not drawn by app', p.rej]);
+    if (p.fb && !simple) rows.push(['Fallback', p.fb]);
     return '<div class="svm-iw"><b>' + escapeHtml(title) + '</b><table>' + rows.map(function (r) {
       return '<tr><td>' + escapeHtml(r[0]) + '</td><td>' + escapeHtml(r[1]) + '</td></tr>';
     }).join('') + '</table></div>';
